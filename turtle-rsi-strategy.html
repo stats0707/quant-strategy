@@ -37,17 +37,46 @@ body { background: #0f1117; color: #e0e0e0; font-family: -apple-system, "PingFan
 .chart-container { background: #1e2130; border-radius: 8px; padding: 15px; margin-bottom: 12px; position: relative; }
 .chart-title { font-size: 14px; color: #fff; margin-bottom: 8px; }
 canvas { display: block; width: 100%; }
-.metrics-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; margin-bottom: 12px; }
-.metric-card { background: #1e2130; border-radius: 8px; padding: 12px; text-align: center; }
-.metric-card .label { font-size: 11px; color: #888; margin-bottom: 4px; }
-.metric-card .value { font-size: 20px; font-weight: 700; }
+/* Section header */
+.section-header { display: flex; align-items: center; gap: 8px; font-size: 14px; color: #fff; margin-bottom: 10px; margin-top: 4px; font-weight: 600; }
+.section-header::before { content: ''; width: 4px; height: 16px; background: linear-gradient(180deg, #4a9eff, #6366f1); border-radius: 2px; flex-shrink: 0; }
+.section-header .hint { font-size: 11px; color: #666; font-weight: 400; margin-left: auto; }
+/* Strategy group */
+.strat-group { margin-bottom: 16px; }
+.strat-group-header { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; margin-bottom: 8px; padding: 4px 10px; border-radius: 6px; }
+.strat-group-header.turtle { background: rgba(74,158,255,0.08); color: #4a9eff; border-left: 3px solid #4a9eff; }
+.strat-group-header.rsi { background: rgba(167,139,250,0.08); color: #a78bfa; border-left: 3px solid #a78bfa; }
+.strat-group-header.buyhold { background: rgba(120,120,120,0.08); color: #aaa; border-left: 3px solid #777; }
+.strat-group-header.ma { background: rgba(14,165,233,0.08); color: #0ea5e9; border-left: 3px solid #0ea5e9; }
+/* Metric cards */
+.metrics-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.metric-card { background: linear-gradient(145deg, #1e2130 0%, #232639 100%); border-radius: 10px; padding: 12px 10px; text-align: center; border-top: 2px solid #2a2d3a; transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s; position: relative; }
+.metric-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.35); }
+.metric-card.accent-turtle { border-top-color: #4a9eff; }
+.metric-card.accent-rsi { border-top-color: #a78bfa; }
+.metric-card.accent-buyhold { border-top-color: #777; }
+.metric-card.accent-ma { border-top-color: #0ea5e9; }
+.metric-card .label { font-size: 10px; color: #777; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.3px; }
+.metric-card .value { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; line-height: 1.2; }
 .metric-card .value.pos { color: #ef4444; }
 .metric-card .value.neg { color: #22c55e; }
+.metric-card .value.neutral { color: #4a9eff; }
+.metric-card .value.amber { color: #f59e0b; }
+.metric-card .value.muted { color: #ccc; }
+.metric-card .sub { font-size: 9px; color: #555; margin-top: 3px; }
+/* Table */
+.table-wrap { background: #1e2130; border-radius: 10px; overflow: hidden; }
 table { width: 100%; border-collapse: collapse; font-size: 12px; }
-th, td { padding: 6px 8px; text-align: center; border-bottom: 1px solid #2a2d3a; }
-th { color: #4a9eff; font-weight: 600; }
-td.pos { color: #ef4444; }
-td.neg { color: #22c55e; }
+thead { background: linear-gradient(135deg, #252836 0%, #2d3043 100%); }
+th { padding: 10px 8px; text-align: center; color: #7aaeff; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px; border-bottom: 2px solid #3a3d4a; white-space: nowrap; }
+td { padding: 9px 8px; text-align: center; border-bottom: 1px solid #232639; transition: background 0.15s; }
+tbody tr:nth-child(even) { background: rgba(255,255,255,0.015); }
+tbody tr:hover { background: rgba(74,158,255,0.06) !important; }
+tbody tr:last-child td { border-bottom: none; }
+td.pos { color: #ef4444; font-weight: 600; }
+td.neg { color: #22c55e; font-weight: 600; }
+td.stock-name { font-weight: 600; color: #ddd; white-space: nowrap; }
+.best-badge { display: inline-block; background: linear-gradient(135deg, #f59e0b, #ef4444); color: #fff; font-size: 9px; padding: 1px 5px; border-radius: 8px; margin-left: 4px; vertical-align: middle; font-weight: 700; white-space: nowrap; }
 .tabs { display: flex; gap: 4px; margin-bottom: 12px; }
 .tab { padding: 6px 16px; background: #1e2130; border-radius: 6px 6px 0 0; cursor: pointer; font-size: 12px; color: #888; border: 1px solid #2a2d3a; border-bottom: none; }
 .tab.active { background: #4a9eff; color: #fff; }
@@ -143,12 +172,14 @@ td.neg { color: #22c55e; }
     </div>
     <div id="metricsContainer"></div>
     <div class="chart-container" id="compareContainer" style="display:none;">
-      <div class="chart-title">多股票策略净值对比</div>
+      <div class="section-header">多股票策略净值对比 <span class="hint">归一化为起始净值 = 1.0</span></div>
       <canvas id="compareChart" width="1200" height="400"></canvas>
     </div>
-    <div class="chart-container" id="tableContainer" style="display:none;">
-      <div class="chart-title">回测指标汇总</div>
-      <table id="metricsTable"></table>
+    <div id="tableContainer" style="display:none;">
+      <div class="section-header">回测指标汇总 <span class="hint">点击表头排序 · 红色为盈利 · 绿色为亏损</span></div>
+      <div class="table-wrap">
+        <table id="metricsTable"></table>
+      </div>
     </div>
   </div>
 </div>
@@ -881,19 +912,32 @@ function runBacktest() {
 
 function showMetrics(metricsMap) {
   const container = document.getElementById('metricsContainer');
-  let html = '<div class="metrics-grid">';
+  const stratMeta = {
+    '海龟法则': { cls: 'turtle', icon: '🐢' },
+    'RSI策略': { cls: 'rsi', icon: '📡' },
+    '买入持有': { cls: 'buyhold', icon: '📊' },
+    '双均线': { cls: 'ma', icon: '📐' },
+  };
+  let html = '<div class="section-header">回测指标 <span class="hint">悬停查看详情 · 红涨绿跌</span></div>';
   for (const name in metricsMap) {
     const m = metricsMap[name];
+    const meta = stratMeta[name] || { cls: 'turtle', icon: '◆' };
     const pos = m.cumulativeReturn >= 0;
-    html += '<div class="metric-card"><div class="label">' + name + ' 累计回报</div><div class="value ' + (pos ? 'pos' : 'neg') + '">' + (pos ? '+' : '') + m.cumulativeReturn + '%</div></div>';
-    html += '<div class="metric-card"><div class="label">' + name + ' 夏普比率</div><div class="value ' + (m.sharpeRatio >= 0 ? 'pos' : 'neg') + '">' + m.sharpeRatio + '</div></div>';
-    html += '<div class="metric-card"><div class="label">' + name + ' 最大回撤</div><div class="value neg">' + m.maxDrawdown + '%</div></div>';
-    html += '<div class="metric-card"><div class="label">' + name + ' 交易次数</div><div class="value" style="color:#4a9eff">' + m.totalTrades + '</div></div>';
-    html += '<div class="metric-card"><div class="label">' + name + ' 胜率</div><div class="value" style="color:#f59e0b">' + m.winRate + '%</div></div>';
-    html += '<div class="metric-card"><div class="label">' + name + ' 期末资产</div><div class="value" style="color:#ddd">¥' + m.finalValue.toLocaleString() + '</div></div>';
+    html += '<div class="strat-group">';
+    html += '<div class="strat-group-header ' + meta.cls + '">' + meta.icon + ' ' + name + '</div>';
+    html += '<div class="metrics-grid">';
+    html += card(meta.cls, '累计回报', (pos ? '+' : '') + m.cumulativeReturn + '%', pos ? 'pos' : 'neg', '期间总收益');
+    html += card(meta.cls, '夏普比率', m.sharpeRatio, m.sharpeRatio >= 0 ? 'pos' : 'neg', '风险调整收益');
+    html += card(meta.cls, '最大回撤', m.maxDrawdown + '%', 'neg', '峰值至谷值');
+    html += card(meta.cls, '交易次数', m.totalTrades, 'neutral', '买卖轮次');
+    html += card(meta.cls, '胜率', m.winRate + '%', m.winRate >= 50 ? 'amber' : 'muted', '盈利交易占比');
+    html += card(meta.cls, '期末资产', '¥' + m.finalValue.toLocaleString(), 'muted', '含交易成本');
+    html += '</div></div>';
   }
-  html += '</div>';
   container.innerHTML = html;
+}
+function card(accent, label, value, valueClass, sub) {
+  return '<div class="metric-card accent-' + accent + '"><div class="label">' + label + '</div><div class="value ' + valueClass + '">' + value + '</div>' + (sub ? '<div class="sub">' + sub + '</div>' : '') + '</div>';
 }
 
 // ========== 多股票对比 ==========
@@ -922,15 +966,31 @@ function runCompare() {
   document.getElementById('compareContainer').style.display = '';
   drawCompareChart(document.getElementById('compareChart'), compareResults, params);
   
-  // Table
+  // Table - find best performer
   document.getElementById('tableContainer').style.display = '';
   const stratName = strategy === 'rsi' ? 'RSI超买' : (strategy === 'buyhold' ? '买入持有' : (strategy === 'ma' ? '双均线' : '海龟法则'));
-  let html = '<tr><th>股票</th><th>累计回报(%)</th><th>夏普比率</th><th>最大回撤(%)</th><th>交易次数</th><th>胜率(%)</th><th>期末资产</th></tr>';
+  let bestCode = null, bestRet = -Infinity;
+  for (const code in compareResults) {
+    const r = compareResults[code].metrics.cumulativeReturn;
+    if (r > bestRet) { bestRet = r; bestCode = code; }
+  }
+  let html = '<thead><tr><th>股票</th><th>累计回报</th><th>夏普比率</th><th>最大回撤</th><th>交易次数</th><th>胜率</th><th>期末资产</th></tr></thead><tbody>';
   for (const code in compareResults) {
     const m = compareResults[code].metrics;
     const pos = m.cumulativeReturn >= 0;
-    html += '<tr><td>' + STOCK_DATA[code].name + '</td><td class="' + (pos ? 'pos' : 'neg') + '">' + (pos ? '+' : '') + m.cumulativeReturn + '</td><td class="' + (m.sharpeRatio >= 0 ? 'pos' : 'neg') + '">' + m.sharpeRatio + '</td><td class="neg">' + m.maxDrawdown + '</td><td>' + m.totalTrades + '</td><td>' + m.winRate + '</td><td>¥' + m.finalValue.toLocaleString() + '</td></tr>';
+    const isBest = code === bestCode && Object.keys(compareResults).length > 1;
+    const nameDisplay = STOCK_DATA[code].name + (STOCK_DATA[code].category ? ' <span style="font-size:9px;color:#666">' + STOCK_DATA[code].category + '</span>' : '');
+    html += '<tr>';
+    html += '<td class="stock-name">' + nameDisplay + (isBest ? '<span class="best-badge">最佳</span>' : '') + '</td>';
+    html += '<td class="' + (pos ? 'pos' : 'neg') + '">' + (pos ? '+' : '') + m.cumulativeReturn + '%</td>';
+    html += '<td class="' + (m.sharpeRatio >= 0 ? 'pos' : 'neg') + '">' + m.sharpeRatio + '</td>';
+    html += '<td class="neg">' + m.maxDrawdown + '%</td>';
+    html += '<td>' + m.totalTrades + '</td>';
+    html += '<td style="color:' + (m.winRate >= 50 ? '#f59e0b' : '#888') + ';font-weight:600">' + m.winRate + '%</td>';
+    html += '<td style="color:#ccc">¥' + m.finalValue.toLocaleString() + '</td>';
+    html += '</tr>';
   }
+  html += '</tbody>';
   document.getElementById('metricsTable').innerHTML = html;
 }
 
