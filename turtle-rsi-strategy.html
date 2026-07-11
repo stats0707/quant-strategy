@@ -63,7 +63,7 @@ td.neg { color: #22c55e; }
 
 <div class="header">
   <h1>海龟法则 & RSI超买策略 — 量化交易回测系统</h1>
-  <div class="subtitle">Donchian通道突破 + ATR仓位管理 + RSI超买超卖 | 5只股票对比 | 2025-07-10 至 2026-07-10</div>
+  <div class="subtitle">Donchian通道突破 + ATR仓位管理 + RSI超买超卖 + 买入持有/双均线Baseline | 5只股票对比 | 2025-07-10 至 2026-07-10</div>
 </div>
 
 <div class="rules-bar">
@@ -72,6 +72,8 @@ td.neg { color: #22c55e; }
     <div class="rule-item"><span class="rule-icon sell">卖</span><div><strong>海龟卖出</strong>收盘价跌破10日最低价通道下轨，<br>全额卖出平仓</div></div>
     <div class="rule-item"><span class="rule-icon stop">止</span><div><strong>海龟止损</strong>价格低于 买入价 - 2×ATR，<br>立即止损卖出</div></div>
     <div class="rule-item"><span class="rule-icon fee">R</span><div><strong>RSI策略</strong>RSI从超卖区(&lt;30)上穿30买入，<br>从超买区(&gt;70)下穿70卖出，止损5%</div></div>
+    <div class="rule-item"><span class="rule-icon buy" style="background:#666">持</span><div><strong>买入持有(Baseline)</strong>首日全额买入，持有至期末平仓。<br>不进行任何买卖操作，作为基准对比。</div></div>
+    <div class="rule-item"><span class="rule-icon sell" style="background:#0ea5e9">M</span><div><strong>双均线(MA10/MA30) Baseline</strong>MA10上穿MA30(金叉)买入，<br>MA10下穿MA30(死叉)卖出，止损5%。</div></div>
   </div>
 </div>
 
@@ -87,7 +89,9 @@ td.neg { color: #22c55e; }
       <div class="strategy-select">
         <label><input type="radio" name="strategy" value="turtle" checked> 海龟法则</label>
         <label><input type="radio" name="strategy" value="rsi"> RSI超买</label>
-        <label><input type="radio" name="strategy" value="both"> 双策略对比</label>
+        <label><input type="radio" name="strategy" value="buyhold"> 买入持有</label>
+        <label><input type="radio" name="strategy" value="ma"> 双均线</label>
+        <label><input type="radio" name="strategy" value="both"> 全策略对比</label>
       </div>
     </div>
 
@@ -106,6 +110,13 @@ td.neg { color: #22c55e; }
       <div class="param-row"><label>超卖线</label><input type="number" id="oversold" value="30" min="10" max="40"></div>
       <div class="param-row"><label>超买线</label><input type="number" id="overbought" value="70" min="60" max="90"></div>
       <div class="param-row"><label>止损比例(%)</label><input type="number" id="rsiStopLoss" value="5" min="1" max="20"></div>
+    </div>
+
+    <div class="panel" id="maParams" style="display:none;">
+      <div class="panel-title">双均线参数</div>
+      <div class="param-row"><label>短均线周期</label><input type="number" id="shortMA" value="10" min="2" max="30"></div>
+      <div class="param-row"><label>长均线周期</label><input type="number" id="longMA" value="30" min="10" max="120"></div>
+      <div class="param-row"><label>止损比例(%)</label><input type="number" id="maStopLoss" value="5" min="1" max="20"></div>
     </div>
 
     <div class="panel">
@@ -170,10 +181,10 @@ function init() {
   // Strategy radio change
   document.querySelectorAll('input[name="strategy"]').forEach(r => {
     r.addEventListener('change', function() {
-      const showTurtle = this.value === 'turtle' || this.value === 'both';
-      const showRsi = this.value === 'rsi' || this.value === 'both';
-      document.getElementById('turtleParams').style.display = showTurtle ? '' : 'none';
-      document.getElementById('rsiParams').style.display = showRsi ? '' : 'none';
+      const val = this.value;
+      document.getElementById('turtleParams').style.display = (val === 'turtle' || val === 'both') ? '' : 'none';
+      document.getElementById('rsiParams').style.display = (val === 'rsi' || val === 'both') ? '' : 'none';
+      document.getElementById('maParams').style.display = (val === 'ma' || val === 'both') ? '' : 'none';
     });
   });
   runBacktest();
@@ -191,6 +202,9 @@ function getParams() {
     oversold: parseInt(document.getElementById('oversold').value),
     overbought: parseInt(document.getElementById('overbought').value),
     rsiStopLoss: parseFloat(document.getElementById('rsiStopLoss').value) / 100,
+    shortMAPeriod: parseInt(document.getElementById('shortMA').value),
+    longMAPeriod: parseInt(document.getElementById('longMA').value),
+    maStopLoss: parseFloat(document.getElementById('maStopLoss').value) / 100,
     initCapital: parseFloat(document.getElementById('initCapital').value),
     slippage: parseFloat(document.getElementById('slippage').value) / 100,
     commission: parseFloat(document.getElementById('commission').value) / 100,
@@ -375,6 +389,89 @@ function backtestRSI(data, params) {
   return { values, trades, signals, rsi, metrics: calcMetrics(values, params.initCapital, trades) };
 }
 
+// ========== 双均线计算 ==========
+function calcMA(data, period) {
+  const ma = new Array(data.length).fill(null);
+  for (let i = period - 1; i < data.length; i++) {
+    let sum = 0;
+    for (let j = i - period + 1; j <= i; j++) sum += data[j][4];
+    ma[i] = sum / period;
+  }
+  return ma;
+}
+
+// ========== 买入持有回测(Baseline) ==========
+function backtestBuyHold(data, params) {
+  let capital = params.initCapital;
+  const bp = data[0][4] * (1 + params.slippage);
+  let shares = Math.floor(capital / (bp * (1 + params.commission)));
+  capital -= shares * bp * (1 + params.commission);
+  const trades = [{date: data[0][0], type: '买入', price: bp, shares}];
+  const values = [];
+  const signals = new Array(data.length).fill(0);
+  signals[0] = 1; // mark buy on first day
+  for (let i = 0; i < data.length; i++) {
+    values.push(capital + shares * data[i][4]);
+  }
+  // Final sell
+  const sp = data[data.length-1][4] * (1 - params.slippage);
+  capital += shares * sp * (1 - params.commission);
+  trades.push({date: data[data.length-1][0], type: '期末平仓', price: sp, shares});
+  signals[signals.length - 1] = -1; // mark sell on last day
+  return { values, trades, signals, metrics: calcMetrics(values, params.initCapital, trades) };
+}
+
+// ========== 双均线策略回测(Baseline) ==========
+function backtestMA(data, params) {
+  const shortMA = calcMA(data, params.shortMAPeriod);
+  const longMA = calcMA(data, params.longMAPeriod);
+  const signals = new Array(data.length).fill(0);
+  
+  for (let i = 1; i < data.length; i++) {
+    if (shortMA[i-1] !== null && longMA[i-1] !== null && shortMA[i] !== null && longMA[i] !== null) {
+      // Golden cross
+      if (shortMA[i-1] <= longMA[i-1] && shortMA[i] > longMA[i]) signals[i] = 1;
+      // Death cross
+      if (shortMA[i-1] >= longMA[i-1] && shortMA[i] < longMA[i]) signals[i] = -1;
+    }
+  }
+  
+  let capital = params.initCapital, position = 0, shares = 0, entryPrice = 0;
+  const trades = [], values = [];
+  
+  for (let i = 0; i < data.length; i++) {
+    const close = data[i][4];
+    // Stop loss
+    if (position === 1 && close < entryPrice * (1 - params.maStopLoss)) {
+      const sp = close * (1 - params.slippage);
+      capital += shares * sp * (1 - params.commission);
+      trades.push({date: data[i][0], type: '止损', price: sp, shares});
+      position = 0; shares = 0;
+    }
+    // Buy
+    if (signals[i] === 1 && position === 0) {
+      const bp = close * (1 + params.slippage);
+      shares = Math.floor(capital * (1 - params.commission) / bp);
+      if (shares > 0) { capital -= shares * bp; entryPrice = bp; position = 1; trades.push({date: data[i][0], type: '买入', price: bp, shares}); }
+    }
+    // Sell
+    if (signals[i] === -1 && position === 1) {
+      const sp = close * (1 - params.slippage);
+      capital += shares * sp * (1 - params.commission);
+      trades.push({date: data[i][0], type: '卖出', price: sp, shares});
+      position = 0; shares = 0;
+    }
+    values.push(capital + shares * close);
+  }
+  if (position === 1) {
+    const sp = data[data.length-1][4] * (1 - params.slippage);
+    capital += shares * sp * (1 - params.commission);
+    trades.push({date: data[data.length-1][0], type: '期末平仓', price: sp, shares});
+  }
+  
+  return { values, trades, signals, shortMA, longMA, metrics: calcMetrics(values, params.initCapital, trades) };
+}
+
 // ========== 指标计算 ==========
 function calcMetrics(values, initCapital, trades) {
   const final = values[values.length - 1];
@@ -424,6 +521,15 @@ function drawChart(canvas, data, result, params, strategy) {
     const lo = result.dc.lower.filter(v => v !== null);
     if (up.length) maxP = Math.max(maxP, ...up);
     if (lo.length) minP = Math.min(minP, ...lo);
+  }
+  if (strategy === 'ma' && result.shortMA) {
+    const sma = result.shortMA.filter(v => v !== null);
+    const lma = result.longMA.filter(v => v !== null);
+    if (sma.length) { maxP = Math.max(maxP, ...sma); minP = Math.min(minP, ...sma); }
+    if (lma.length) { maxP = Math.max(maxP, ...lma); minP = Math.min(minP, ...lma); }
+  }
+  if (strategy === 'buyhold') {
+    // Just use price range, no extra lines
   }
   const range = maxP - minP || 1;
   minP -= range * 0.05; maxP += range * 0.05;
@@ -493,6 +599,32 @@ function drawChart(canvas, data, result, params, strategy) {
   }
   ctx.stroke();
   
+  // MA lines for dual MA strategy
+  if (strategy === 'ma' && result.shortMA) {
+    // Short MA
+    ctx.strokeStyle = '#0ea5e9'; ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    let started = false;
+    for (let i = 0; i < data.length; i++) {
+      if (result.shortMA[i] !== null) {
+        const x = padL + i * xStep, y = yScale(result.shortMA[i]);
+        if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+      }
+    }
+    ctx.stroke();
+    // Long MA
+    ctx.strokeStyle = '#f472b6'; ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    started = false;
+    for (let i = 0; i < data.length; i++) {
+      if (result.longMA[i] !== null) {
+        const x = padL + i * xStep, y = yScale(result.longMA[i]);
+        if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+      }
+    }
+    ctx.stroke();
+  }
+  
   // Buy/Sell signals
   for (let i = 0; i < data.length; i++) {
     if (result.signals[i] === 1) {
@@ -521,6 +653,10 @@ function drawChart(canvas, data, result, params, strategy) {
     drawLegend('#ef4444', '入场上轨', [4, 3]);
     drawLegend('#22c55e', '通道下轨', [4, 3]);
     drawLegend('#f59e0b', '出场下轨', [2, 2]);
+  }
+  if (strategy === 'ma') {
+    drawLegend('#0ea5e9', 'MA' + params.shortMAPeriod);
+    drawLegend('#f472b6', 'MA' + params.longMAPeriod);
   }
   // Signal legend
   ctx.fillStyle = '#ef4444'; ctx.beginPath();
@@ -691,38 +827,56 @@ function runBacktest() {
   
   const strategy = getStrategy();
   let result, title, subTitle;
+  const subChart = document.getElementById('subChartContainer');
   
   if (strategy === 'turtle') {
     result = backtestTurtle(data, params);
     title = STOCK_DATA[code].name + '(' + code + ') 海龟法则: Donchian通道与交易信号';
     subTitle = 'ATR(' + params.atrPeriod + ')';
-    document.getElementById('subChartContainer').style.display = '';
+    subChart.style.display = '';
+    drawChart(document.getElementById('mainChart'), data, result, params, 'turtle');
+    drawSubChart(document.getElementById('subChart'), data, result, params, 'turtle');
   } else if (strategy === 'rsi') {
     result = backtestRSI(data, params);
     title = STOCK_DATA[code].name + '(' + code + ') RSI超买超卖策略交易信号';
     subTitle = 'RSI(' + params.rsiPeriod + ')';
-    document.getElementById('subChartContainer').style.display = '';
+    subChart.style.display = '';
+    drawChart(document.getElementById('mainChart'), data, result, params, 'rsi');
+    drawSubChart(document.getElementById('subChart'), data, result, params, 'rsi');
+  } else if (strategy === 'buyhold') {
+    result = backtestBuyHold(data, params);
+    title = STOCK_DATA[code].name + '(' + code + ') 买入持有(Baseline)';
+    subTitle = '';
+    subChart.style.display = 'none';
+    drawChart(document.getElementById('mainChart'), data, result, params, 'buyhold');
+  } else if (strategy === 'ma') {
+    result = backtestMA(data, params);
+    title = STOCK_DATA[code].name + '(' + code + ') 双均线(MA' + params.shortMAPeriod + '/MA' + params.longMAPeriod + ') Baseline';
+    subTitle = '';
+    subChart.style.display = 'none';
+    drawChart(document.getElementById('mainChart'), data, result, params, 'ma');
   } else {
-    // Both: run turtle as main, show comparison
+    // Both: run all 4 strategies
     const rT = backtestTurtle(data, params);
     const rR = backtestRSI(data, params);
+    const rB = backtestBuyHold(data, params);
+    const rM = backtestMA(data, params);
     result = rT;
-    title = STOCK_DATA[code].name + '(' + code + ') 海龟法则(主图) | RSI对比见指标';
-    document.getElementById('subChartContainer').style.display = '';
-    // Show both metrics
-    showMetrics({ '海龟法则': rT.metrics, 'RSI策略': rR.metrics });
+    title = STOCK_DATA[code].name + '(' + code + ') 全策略对比 — 海龟(主图) | 4策略指标见下方';
+    subChart.style.display = '';
     drawChart(document.getElementById('mainChart'), data, rT, params, 'turtle');
-    document.getElementById('mainChartTitle').textContent = title;
     drawSubChart(document.getElementById('subChart'), data, rT, params, 'turtle');
-    document.getElementById('subChartTitle').textContent = 'ATR(' + params.atrPeriod + ')';
+    subTitle = 'ATR(' + params.atrPeriod + ')';
+    document.getElementById('mainChartTitle').textContent = title;
+    document.getElementById('subChartTitle').textContent = subTitle;
+    showMetrics({ '海龟法则': rT.metrics, 'RSI策略': rR.metrics, '买入持有': rB.metrics, '双均线': rM.metrics });
     return;
   }
   
   document.getElementById('mainChartTitle').textContent = title;
-  drawChart(document.getElementById('mainChart'), data, result, params, strategy);
-  drawSubChart(document.getElementById('subChart'), data, result, params, strategy);
   document.getElementById('subChartTitle').textContent = subTitle;
-  showMetrics({ [strategy === 'turtle' ? '海龟法则' : 'RSI策略']: result.metrics });
+  const stratName = strategy === 'turtle' ? '海龟法则' : (strategy === 'rsi' ? 'RSI策略' : (strategy === 'buyhold' ? '买入持有' : '双均线'));
+  showMetrics({ [stratName]: result.metrics });
 }
 
 function showMetrics(metricsMap) {
@@ -755,7 +909,12 @@ function runCompare() {
     if (data.length < 30) continue;
     if (strategy === 'rsi') {
       compareResults[code] = backtestRSI(data, params);
+    } else if (strategy === 'buyhold') {
+      compareResults[code] = backtestBuyHold(data, params);
+    } else if (strategy === 'ma') {
+      compareResults[code] = backtestMA(data, params);
     } else {
+      // turtle or both -> use turtle for compare chart
       compareResults[code] = backtestTurtle(data, params);
     }
   }
@@ -765,7 +924,7 @@ function runCompare() {
   
   // Table
   document.getElementById('tableContainer').style.display = '';
-  const stratName = strategy === 'rsi' ? 'RSI超买' : '海龟法则';
+  const stratName = strategy === 'rsi' ? 'RSI超买' : (strategy === 'buyhold' ? '买入持有' : (strategy === 'ma' ? '双均线' : '海龟法则'));
   let html = '<tr><th>股票</th><th>累计回报(%)</th><th>夏普比率</th><th>最大回撤(%)</th><th>交易次数</th><th>胜率(%)</th><th>期末资产</th></tr>';
   for (const code in compareResults) {
     const m = compareResults[code].metrics;
